@@ -12,15 +12,4 @@ import com.example.limits.web.dto.TransactionResponse;
  *   <li>{@code response} — итоговый ответ для API.</li>
  * </ul>
  */
-public record DebitOutcome(boolean created, String resourceId, TransactionResponse response) {
-
-    /** Конструктор для «создано». */
-    public static DebitOutcome created(String resourceId, TransactionResponse response) {
-        return new DebitOutcome(true, resourceId, response);
-    }
-
-    /** Конструктор для «идемпотентный повтор / ок». */
-    public static DebitOutcome ok(String resourceId, TransactionResponse response) {
-        return new DebitOutcome(false, resourceId, response);
-    }
-}
+public record DebitOutcome(boolean created, String resourceId, TransactionResponse response) {}
