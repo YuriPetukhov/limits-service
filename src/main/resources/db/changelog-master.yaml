@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/001-init-limits.yaml
+  - include:
+      file: db/changelog/002-strategy.yaml
+  - include:
+      file: db/changelog/003-default-strategy.yaml
