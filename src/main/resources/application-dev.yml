@@ -1,0 +1,30 @@
+spring:
+  docker:
+    compose:
+      enabled: false
+  datasource:
+    url: jdbc:postgresql://localhost:5433/limitsdb?currentSchema=limits_dev
+    username: limits_app
+    password: app_password
+  jpa:
+    properties:
+      hibernate:
+        default_schema: limits_dev
+  liquibase:
+    default-schema: limits_dev
+    liquibase-schema: limits_dev
+    contexts: dev
+
+logging:
+  level:
+    root: INFO
+    com.example.limits: INFO
+
+limits:
+  strategy:
+    seed:
+      enabled: true
+  scheduler:
+    cron: "0 */1 * * * *"
+    zone: "Europe/Moscow"
+    batch-size: 100

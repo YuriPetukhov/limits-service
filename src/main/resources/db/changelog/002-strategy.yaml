@@ -1,0 +1,166 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-strategy-and-binding
+      author: YuriPetukhov
+      changes:
+        - createTable:
+            tableName: strategy
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_strategy
+              - column:
+                  name: name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: enabled
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_default
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dsl_text
+                  type: TEXT
+                  constraints:
+                    nullable: true
+              - column:
+                  name: spec_json
+                  type: JSONB
+                  constraints:
+                    nullable: true
+              - column:
+                  name: limits_json
+                  type: JSONB
+              - column:
+                  name: checksum
+                  type: VARCHAR(64)
+              - column:
+                  name: updated_by
+                  type: VARCHAR(100)
+              - column:
+                  name: created_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            tableName: strategy
+            columnNames: name, version
+            constraintName: uq_strategy_name_version
+
+        - createIndex:
+            tableName: strategy
+            indexName: idx_strategy_enabled
+            columns:
+              - column:
+                  name: enabled
+
+        - sql:
+            splitStatements: false
+            stripComments: true
+            sql: |
+              CREATE UNIQUE INDEX IF NOT EXISTS uq_strategy_default_true
+              ON strategy ((CASE WHEN is_default THEN 1 ELSE NULL END));
+
+              DROP TRIGGER IF EXISTS trg_strategy_updated_at ON strategy;
+              CREATE TRIGGER trg_strategy_updated_at
+              BEFORE UPDATE ON strategy
+              FOR EACH ROW
+              EXECUTE FUNCTION set_updated_at();
+
+        - createTable:
+            tableName: user_strategy
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_user_strategy
+              - column:
+                  name: user_id
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: strategy_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: effective_from
+                  type: TIMESTAMPTZ
+              - column:
+                  name: effective_to
+                  type: TIMESTAMPTZ
+              - column:
+                  name: created_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - addForeignKeyConstraint:
+            baseTableName: user_strategy
+            baseColumnNames: strategy_id
+            referencedTableName: strategy
+            referencedColumnNames: id
+            constraintName: fk_user_strategy_strategy
+            onDelete: RESTRICT
+            onUpdate: CASCADE
+
+        - addUniqueConstraint:
+            tableName: user_strategy
+            columnNames: user_id, strategy_id
+            constraintName: uq_user_strategy_pair
+
+        - sql:
+            splitStatements: false
+            stripComments: true
+            sql: |
+              CREATE UNIQUE INDEX IF NOT EXISTS uq_user_strategy_active_one
+              ON user_strategy (user_id)
+              WHERE is_active = true;
+
+              DROP TRIGGER IF EXISTS trg_user_strategy_updated_at ON user_strategy;
+              CREATE TRIGGER trg_user_strategy_updated_at
+              BEFORE UPDATE ON user_strategy
+              FOR EACH ROW
+              EXECUTE FUNCTION set_updated_at();

@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - changeSet:
+      id: seed-default-strategy
+      author: YuriPetukhov
+      context: dev
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: "SELECT count(*) FROM strategy WHERE is_default = true"
+      changes:
+        - insert:
+            tableName: strategy
+            columns:
+              - column: { name: name,       value: "GLOBAL_DAILY" }
+              - column: { name: version,    valueNumeric: 1 }
+              - column: { name: enabled,    valueBoolean: true }
+              - column: { name: is_default, valueBoolean: true }
+              - column:
+                  name: limits_json
+                  value: >
+                    {"windows":[{"id":"day","limit":10000,"periodIso":"P1D","anchor":"UTC:00:00"}]}

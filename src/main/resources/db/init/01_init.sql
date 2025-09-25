@@ -1,0 +1,23 @@
+CREATE ROLE limits_owner LOGIN PASSWORD 'owner_password';
+CREATE ROLE limits_app   LOGIN PASSWORD 'app_password';
+
+CREATE DATABASE limitsdb OWNER limits_owner;
+\connect limitsdb
+
+CREATE SCHEMA IF NOT EXISTS limits_dev  AUTHORIZATION limits_owner;
+CREATE SCHEMA IF NOT EXISTS limits_prod AUTHORIZATION limits_owner;
+
+GRANT ALL ON SCHEMA limits_dev  TO limits_app;
+GRANT ALL ON SCHEMA limits_prod TO limits_app;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA limits_dev
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO limits_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA limits_dev
+  GRANT USAGE, SELECT ON SEQUENCES TO limits_app;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA limits_prod
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO limits_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA limits_prod
+  GRANT USAGE, SELECT ON SEQUENCES TO limits_app;
+
+ALTER DATABASE limitsdb SET search_path TO limits_dev, public;

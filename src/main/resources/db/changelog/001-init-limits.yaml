@@ -1,0 +1,205 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-limit-bucket-and-registry
+      author: YuriPetukhov
+      changes:
+        - createTable:
+            tableName: limit_bucket
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_limit_bucket
+              - column:
+                  name: user_id
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: scope_key
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: base_limit
+                  type: NUMERIC(18,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: remaining
+                  type: NUMERIC(18,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: interval_seconds
+                  type: BIGINT
+                  constraints:
+                    nullable: true
+              - column:
+                  name: last_period_start
+                  type: TIMESTAMPTZ
+                  constraints:
+                    nullable: false
+              - column:
+                  name: next_reset_at
+                  type: TIMESTAMPTZ
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - addUniqueConstraint:
+            tableName: limit_bucket
+            columnNames: user_id, scope_key
+            constraintName: uq_limit_bucket_user_scope
+        - sql:
+            splitStatements: false
+            stripComments: true
+            sql: |
+              ALTER TABLE limit_bucket
+                ADD CONSTRAINT chk_remaining_le_base
+                CHECK (remaining >= 0 AND base_limit >= 0 AND remaining <= base_limit);
+
+              ALTER TABLE limit_bucket
+                ADD CONSTRAINT chk_interval_positive
+                CHECK (interval_seconds IS NULL OR interval_seconds > 0);
+
+              ALTER TABLE limit_bucket
+                ADD CONSTRAINT chk_period_order
+                CHECK (last_period_start < next_reset_at);
+
+        - createIndex:
+            tableName: limit_bucket
+            indexName: idx_limit_bucket_next_reset
+            columns:
+              - column:
+                  name: next_reset_at
+
+        - createIndex:
+            tableName: limit_bucket
+            indexName: idx_limit_bucket_user
+            columns:
+              - column:
+                  name: user_id
+
+        - createTable:
+            tableName: limit_tx_registry
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    primaryKeyName: pk_limit_tx_registry
+              - column:
+                  name: user_id
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: scope_key
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: period_start
+                  type: TIMESTAMPTZ
+                  constraints:
+                    nullable: false
+              - column:
+                  name: tx_id
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: original_tx_id
+                  type: VARCHAR(128)
+              - column:
+                  name: amount
+                  type: NUMERIC(18,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: limit_tx_registry
+            columnNames: user_id, tx_id
+            constraintName: uq_tx_registry_user_tx
+
+        - sql:
+            splitStatements: false
+            stripComments: true
+            sql: |
+              ALTER TABLE limit_tx_registry
+                ADD CONSTRAINT chk_amount_nonzero
+                CHECK (amount <> 0);
+
+        - createIndex:
+            tableName: limit_tx_registry
+            indexName: idx_tx_registry_period
+            columns:
+              - column:
+                  name: period_start
+
+        - createIndex:
+            tableName: limit_tx_registry
+            indexName: idx_tx_registry_original
+            columns:
+              - column:
+                  name: original_tx_id
+
+        - createIndex:
+            tableName: limit_tx_registry
+            indexName: idx_tx_registry_user_scope_period
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: scope_key
+              - column:
+                  name: period_start
+
+        - addForeignKeyConstraint:
+            baseTableName: limit_tx_registry
+            baseColumnNames: user_id, scope_key
+            referencedTableName: limit_bucket
+            referencedColumnNames: user_id, scope_key
+            constraintName: fk_tx_registry_bucket
+            onDelete: RESTRICT
+            onUpdate: CASCADE
+
+        - sql:
+            splitStatements: false
+            stripComments: true
+            sql: |
+              CREATE OR REPLACE FUNCTION set_updated_at()
+              RETURNS TRIGGER AS $$
+              BEGIN
+                NEW.updated_at := CURRENT_TIMESTAMP;
+                RETURN NEW;
+              END;
+              $$ LANGUAGE plpgsql;
+
+              DROP TRIGGER IF EXISTS trg_limit_bucket_updated_at ON limit_bucket;
+              CREATE TRIGGER trg_limit_bucket_updated_at
+              BEFORE UPDATE ON limit_bucket
+              FOR EACH ROW
+              EXECUTE FUNCTION set_updated_at();
