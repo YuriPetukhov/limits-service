@@ -11,19 +11,27 @@ import lombok.Setter;
  * Передаётся между шагами и накапливает промежуточные результаты.
  */
 @Getter
+@Setter
 public class CancelContext {
+
     private final CancelRequest request;
 
-    @Setter private boolean stopped;
-    @Setter private boolean created;
-    @Setter private String resourceId;
+    private boolean stopped;
+    private String resourceId;
+    private boolean created;
+    private CancelResponse response;
 
-    @Setter private LimitTxRegistry originalTx;
-    @Setter private LimitBucket bucket;
+    private LimitTxRegistry originalTx;
+    private LimitBucket bucket;
 
-    @Setter private CancelResponse response;
-    public CancelContext(CancelRequest request) { this.request = request; }
+    public CancelContext(CancelRequest request) {
+        this.request = request;
+    }
 
     public void stop() { this.stopped = true; }
-    public void stopWith(CancelResponse resp) { this.response = resp; this.stopped = true; }
+
+    public void stopWith(CancelResponse response) {
+        this.response = response;
+        this.stopped = true;
+    }
 }

@@ -32,27 +32,47 @@ public class MaintenanceServiceImpl implements MaintenanceService {
     @Value("${limits.scheduler.batch-size:500}")
     private int batchSize;
 
+    /** Максимум итераций за один запуск (safety valve). */
+    @Value("${limits.scheduler.max-iterations:1000}")
+    private int maxIterations;
+
     @Override
     @Transactional
     public int sweepExpiredBuckets() {
         int totalProcessed = 0;
+        int iteration = 0;
         Instant now = Instant.now();
 
-        while (true) {
-            List<LimitBucket> expiredBatch = limitBucketRepository.findExpiredForUpdate(now, batchSize);
-            if (expiredBatch.isEmpty()) {
-                break;
+        while (iteration++ < maxIterations) {
+            List<LimitBucket> page = limitBucketRepository.findExpiredForUpdate(now, batchSize);
+            if (page.isEmpty()) break;
+
+            for (LimitBucket bucket : page) {
+                Long intervalSeconds = bucket.getIntervalSeconds();
+                if (intervalSeconds == null) continue;
+
+                long overdueSec = Duration.between(bucket.getNextResetAt(), now).getSeconds();
+                long steps = Math.max(1L, (long) Math.ceil((double) overdueSec / intervalSeconds));
+
+                bucket.setLastPeriodStart(bucket.getLastPeriodStart().plusSeconds(steps * intervalSeconds));
+                bucket.setNextResetAt(bucket.getNextResetAt().plusSeconds(steps * intervalSeconds));
+                bucket.setRemaining(bucket.getBaseLimit());
             }
 
-            for (LimitBucket bucket : expiredBatch) {
-                rollWindowAndReset(bucket, now);
-            }
+            limitBucketRepository.saveAll(page);
+            totalProcessed += page.size();
 
-            limitBucketRepository.saveAll(expiredBatch);
-            totalProcessed += expiredBatch.size();
+            if (page.size() < batchSize) break;
         }
 
-        log.info("Sweep done: reset {} bucket(s)", totalProcessed);
+        if (iteration > maxIterations) {
+            log.warn("Sweep stopped by max-iterations guard: iterations={}, batchSize={}, processed={}",
+                    iteration - 1, batchSize, totalProcessed);
+        } else {
+            log.info("Sweep done: processed={}, batchSize={}, iterations={}",
+                    totalProcessed, batchSize, iteration - 1);
+        }
+
         return totalProcessed;
     }
 

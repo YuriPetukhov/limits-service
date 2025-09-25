@@ -28,3 +28,4 @@ limits:
     cron: "0 */1 * * * *"
     zone: "Europe/Moscow"
     batch-size: 100
+    max-iterations: 1000
